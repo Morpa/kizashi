@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Morpa/kizashi/compare/v1.0.0...v1.0.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **internal:** fix goroutine inside file.go ([d3072dd](https://github.com/Morpa/kizashi/commit/d3072dd2e7c292742f0c912ee197905ef8700e8a))
+
 ## 1.0.0 (2026-08-01)
 
 
