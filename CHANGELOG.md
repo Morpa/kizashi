@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/Morpa/kizashi/compare/v1.0.1...v1.0.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* **release:** fix release ([2400916](https://github.com/Morpa/kizashi/commit/240091660ecc890c0949b54c5fd64bb5455ff385))
+
 ## [1.0.1](https://github.com/Morpa/kizashi/compare/v1.0.0...v1.0.1) (2026-08-01)
 
 
