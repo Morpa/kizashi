@@ -31,7 +31,7 @@ install: build
 # build com versão embutida (ldflags):
 #   make release VERSION=1.0.0
 release:
-	$(GO) build -ldflags "-X kizashi/internal/cli.version=$(VERSION)" -o $(BIN) $(PKG)
+	$(GO) build -ldflags "-X github.com/Morpa/kizashi/internal/cli.version=$(VERSION)" -o $(BIN) $(PKG)
 
 test:
 	$(GO) test ./...

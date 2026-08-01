@@ -1,0 +1,53 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/kizashi
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/Morpa/kizashi/internal/cli.version={{ .Version }}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+
+# O release-please já cria o release com changelog; por padrão (mode: keep-existing)
+# o goreleaser só faz upload dos artefatos, sem sobrescrever as notas.
+# release:
+#   mode: keep-existing
+
+brews:
+  - name: kizashi
+    repository:
+      owner: Morpa
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/Morpa/kizashi"
+    description: "Streama e visualiza logs locais estruturados no terminal"
+    commit_author:
+      name: goreleaserbot
+      email: "bot@goreleaser.com"
