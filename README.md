@@ -1,10 +1,12 @@
-# kizashi
+<p align="center">
+    <img src="img/logo.png" width="220" alt="kizashi logo" align="center">
+</p>
 
 Visualizador de logs no terminal: cores por nível, follow ao vivo e filtros.
 Funciona com **qualquer framework** — Node, React/Vite, Astro, Go... se o teu
 app escreve no terminal, o kizashi mostra.
 
-## 🚀 Instalar
+## Instalar
 
 **Homebrew** (via release oficial):
 
@@ -25,7 +27,7 @@ Ou manualmente:
 go build -o bin/kizashi ./cmd/kizashi
 ```
 
-## ▶️ Usar (o principal)
+## Usar (o principal)
 
 Pega o comando que roda o teu projeto e cola na frente do kizashi:
 
@@ -47,7 +49,7 @@ kizashi stream -f app.log -f api.log        # vários arquivos
 kizashi stream -f app.log --buffer 20000    # buffer maior
 ```
 
-## ⌨️ Teclas
+## Teclas
 
 | Tecla                 | Ação                             |
 | --------------------- | -------------------------------- |
@@ -59,7 +61,7 @@ kizashi stream -f app.log --buffer 20000    # buffer maior
 | `↑` `↓` `PgUp` `PgDn` | rolar (↑ sai do follow)          |
 | `g` / `G`             | início / fim (G retoma o follow) |
 
-## 🔎 Filtros
+## Filtros
 
 Pressione `/` e digite. Termos separados por espaço = AND.
 
@@ -72,7 +74,7 @@ Pressione `/` e digite. Termos separados por espaço = AND.
 | `request.id=42` | campo aninhado               |
 | `error slow`    | os dois ao mesmo tempo       |
 
-## 🧩 O que o kizashi entende
+## O que o kizashi entende
 
 - **Linha JSON** (de uma linha só) → vira `hora serviço NÍVEL mensagem`, cor
   por nível. Funciona com logs estruturados de qualquer ferramenta (pino,
@@ -82,20 +84,20 @@ Pressione `/` e digite. Termos separados por espaço = AND.
 - **Memória limitada**: guarda os últimos 10.000 logs (aumente com
   `--buffer 50000`).
 
-## ⚠️ Limitações
+## Limitações
 
 - JSON "pretty-printed" (multilinha) é tratado como texto puro.
 - `-f` começa do fim do arquivo; para ver o histórico todo, use
   `cat app.log | kizashi stream`.
 - O destaque do filtro vale só para mensagens JSON.
 
-## ✅ Testes
+## Testes
 
 ```bash
 make check   # vet + testes + testes com race detector
 ```
 
-## 📁 Estrutura
+## Estrutura
 
 ```
 cmd/kizashi/          entrypoint
