@@ -104,14 +104,18 @@ func (a *App) buildUI() {
 	frame.SetBorder(true)
 	frame.SetTitle(" Filtro — Enter aplica, Esc limpa ")
 	frame.SetBorderAttributes(tcell.AttrDim)
+	// Um Frame com borda no tview só dimensiona o primitivo interno quando tem
+	// pelo menos 6 linhas (2 de borda + padding interno de 1 em cima/embaixo).
+	// Com menos, ele desenha só a moldura e o InputField nunca é posicionado.
+	modalHeight := 6
 
-	// centraliza o modal vertical e horizontalmente
+	// centraliza o modal vertical e horizontalmente.
 	modal := tview.NewFlex().SetDirection(tview.FlexRow)
 	modal.AddItem(nil, 0, 1, false)
 	modal.AddItem(tview.NewFlex().
 		AddItem(nil, 0, 1, false).
 		AddItem(frame, 60, 0, true).
-		AddItem(nil, 0, 1, false), 1, 0, true)
+		AddItem(nil, 0, 1, false), modalHeight, 0, true)
 	modal.AddItem(nil, 0, 1, false)
 
 	a.pages = tview.NewPages()
