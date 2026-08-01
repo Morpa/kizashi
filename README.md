@@ -6,6 +6,14 @@ app escreve no terminal, o kizashi mostra.
 
 ## 🚀 Instalar
 
+**Homebrew** (via release oficial):
+
+```bash
+brew install morpa/tap/kizashi
+```
+
+Build local:
+
 ```bash
 make            # gera o binário bin/kizashi
 make install    # instala no PATH (aí é só digitar `kizashi`)
