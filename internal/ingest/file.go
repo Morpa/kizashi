@@ -36,6 +36,14 @@ func FileSource(ctx context.Context, path string) (Source, error) {
 	if err != nil {
 		return Source{}, err
 	}
+	// O ponto de partida do tail é fixado aqui, de forma síncrona: quando
+	// FileSource retorna, o cursor já está no fim do arquivo. Sem isso, o seek
+	// acontecia dentro da goroutine e linhas escritas logo após a chamada
+	// podiam ficar antes do cursor e ser perdidas (corrida de inicialização).
+	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+		_ = f.Close()
+		return Source{}, err
+	}
 	lines := make(chan string, 1024)
 	go tailFile(ctx, f, path, lines)
 	return Source{Name: path, Lines: lines}, nil
@@ -48,9 +56,9 @@ func tailFile(ctx context.Context, f *os.File, path string, lines chan<- string)
 	defer close(lines)
 	defer func() { _ = f.Close() }()
 
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
-		return
-	}
+	// FileSource já posicionou o arquivo no fim (seek síncrono antes do retorno);
+	// aqui o cursor não pode ser re-posicionado, senão linhas recém-escritas
+	// ficariam antes dele e seriam perdidas.
 	reader := bufio.NewReader(f)
 	var pending []byte // linha parcial aguardando completar
 
