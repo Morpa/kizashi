@@ -1,0 +1,10 @@
+{"level":"info","msg":"server listening on :3000","service":"api","time":1780000000}
+{"level":"error","msg":"connect ECONNREFUSED 127.0.0.1:5432","service":"db"}
+{"level":"warn","msg":"slow query","duration":1500,"service":"db"}
+{"level":"debug","msg":"cache miss","key":"user:42","service":"api"}
+{"level":"info","message":"GET / 200 12ms","method":"GET","path":"/","status":200,"service":"api"}
+{"level":"fatal","msg":"panic: nil pointer dereference","service":"worker"}
+this is a plain text line without json
+2026-08-01T08:00:00Z [http] POST /api/login 401
+{"level":"info","msg":"job finished","job":"reindex","took_ms":4500,"service":"worker"}
+{"level":"warn","msg":"retry 2/3","service":"worker","reason":"connection reset"}
