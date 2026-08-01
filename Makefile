@@ -18,7 +18,7 @@ ifeq ($(GOBIN),)
 GOBIN := $(shell $(GO) env GOPATH)/bin
 endif
 
-.PHONY: all build install release test test-race check vet fmt run clean help
+.PHONY: all build install unblock release test test-race check vet fmt run clean help
 
 all: build
 
@@ -27,6 +27,13 @@ build:
 
 install: build
 	$(GO) install $(PKG)
+
+# macOS: remove a flag com.apple.quarantine do binário instalado via brew.
+# O Homebrew marca o download e o Gatekeeper bloqueia o binário não assinado
+# ("Apple could not verify..."). Rode após cada `brew upgrade --cask kizashi`.
+unblock:
+	xattr -dr com.apple.quarantine $$(brew --prefix)/bin/kizashi
+	@echo "Quarantena do macOS removida. Confirme com: kizashi --help"
 
 # build com versão embutida (ldflags):
 #   make release VERSION=1.0.0
@@ -66,3 +73,4 @@ help:
 	@echo "  make fmt        gofmt em todos os pacotes"
 	@echo "  make run        roda o TUI com sample/demo.jsonl"
 	@echo "  make clean      remove $(BIN_DIR)"
+	@echo "  make unblock    remove a quarantena do macOS no binário via brew"
