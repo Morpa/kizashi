@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/Morpa/kizashi/compare/v1.0.2...v1.0.3) (2026-08-01)
+
+
+### Bug Fixes
+
+* **internal:** filter modal ([03f1f2b](https://github.com/Morpa/kizashi/commit/03f1f2b5b8f1be1bbe5a7b2ea000ca88e13958dc))
+
 ## [1.0.2](https://github.com/Morpa/kizashi/compare/v1.0.1...v1.0.2) (2026-08-01)
 
 
