@@ -1,9 +1,7 @@
 version: 2
-
 before:
   hooks:
     - go mod tidy
-
 builds:
   - main: ./cmd/kizashi
     env:
@@ -17,29 +15,24 @@ builds:
       - arm64
     ldflags:
       - -s -w -X github.com/Morpa/kizashi/internal/cli.version={{ .Version }}
-
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         formats: ["zip"]
-
 checksum:
   name_template: "checksums.txt"
-
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
-
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
 # O release-please já cria o release com changelog; por padrão (mode: keep-existing)
 # o goreleaser só faz upload dos artefatos, sem sobrescrever as notas.
 # release:
 #   mode: keep-existing
-
 homebrew_casks:
   - name: kizashi
     repository:
@@ -51,3 +44,9 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: "bot@goreleaser.com"
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kizashi"]
+          end
