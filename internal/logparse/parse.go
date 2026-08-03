@@ -13,23 +13,40 @@ import (
 
 var ansiStrip = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
 
+// taskPrefix casa prefixos de task-runners de monorepo (turbo/pnpm/
+// concurrently), ex.: "be/general-rest-api dev: {...}" ou "ui dev: GET ...".
+// Exige início em minúscula para não colidir com "Error:"/"Warning:"/
+// "Note:" (convenção de frase capitalizada usada por heuristicLevel).
+var taskPrefix = regexp.MustCompile(`^([a-z][a-z0-9._/@-]*)(?:\s+[a-z][a-z0-9_-]*)?:\s(.*)$`)
+
 // ParseLine converte uma linha de log em uma model.Entry.
 func ParseLine(line, source string) model.Entry {
 	e := model.Entry{Raw: line, Source: source}
 
-	if fields, ok := parseJSONObject(line); ok {
+	rest := line
+	prefixService := ""
+	if m := taskPrefix.FindStringSubmatch(line); m != nil {
+		prefixService = m[1]
+		rest = m[2]
+	}
+
+	if fields, ok := parseJSONObject(rest); ok {
 		e.IsJSON = true
 		e.Fields = fields
 		e.Level = extractLevel(fields)
 		e.Time = extractTime(fields)
 		e.Service = extractService(fields)
+		if e.Service == "" {
+			e.Service = prefixService
+		}
 		e.Text = extractMessage(fields)
 		return e
 	}
 
-	// texto puro: mantém a linha original (com ANSI, se houver)
-	e.Text = line
-	e.Level = heuristicLevel(line)
+	// texto puro: mantém o resto da linha (com ANSI, se houver)
+	e.Service = prefixService
+	e.Text = rest
+	e.Level = heuristicLevel(rest)
 	return e
 }
 

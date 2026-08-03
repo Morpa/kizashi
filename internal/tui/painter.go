@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -72,38 +73,58 @@ func (p *Painter) PaintLine(screen tcell.Screen, e *model.Entry, x, y, maxW int,
 	}
 }
 
-// cellsFor monta as células de uma entrada: para JSON, segmentos
-// tempo/serviço/nível/mensagem com cores; para texto puro, parse de ANSI.
-func (p *Painter) cellsFor(e *model.Entry, needle string) []cell {
-	if !e.IsJSON {
-		return p.plainCells(e)
-	}
+// serviceWidth é a largura fixa (em runas) da coluna de serviço; nomes
+// maiores são truncados com "…", menores recebem padding de espaços.
+const serviceWidth = 20
 
+// cellsFor monta as células de uma entrada: tempo/serviço/nível são
+// prefixados quando presentes (JSON ou texto puro com prefixo de
+// workspace extraído); o corpo da mensagem usa parse JSON ou ANSI/HTTP.
+func (p *Painter) cellsFor(e *model.Entry, needle string) []cell {
 	timeStyle := tcell.StyleDefault.Foreground(p.pal.Time)
 	svcStyle := tcell.StyleDefault.Foreground(p.pal.Service)
 	lvlStyle := levelStyle(p.pal, e.Level)
 
 	var cells []cell
-	if e.Time != "" {
+	if e.IsJSON && e.Time != "" {
 		cells = appendCells(cells, e.Time, timeStyle)
 		cells = append(cells, cell{' ', timeStyle})
 	}
 	if e.Service != "" {
-		cells = appendCells(cells, e.Service, svcStyle)
+		cells = appendCells(cells, padService(e.Service, serviceWidth), svcStyle)
 		cells = append(cells, cell{' ', svcStyle})
 	}
-	if e.Level != model.LevelNone {
-		cells = appendCells(cells, e.Level.String(), lvlStyle)
-		cells = append(cells, cell{' ', lvlStyle})
+	if e.IsJSON {
+		if e.Level != model.LevelNone {
+			cells = appendCells(cells, e.Level.String(), lvlStyle)
+			cells = append(cells, cell{' ', lvlStyle})
+		}
+		return appendCellsHighlight(cells, e.Text, lvlStyle, needle, p.pal.Highlight)
 	}
-	return appendCellsHighlight(cells, e.Text, lvlStyle, needle, p.pal.Highlight)
+	return append(cells, p.plainCells(e)...)
+}
+
+// padService trunca (com "…") ou completa com espaços até width runas.
+func padService(s string, width int) string {
+	runes := []rune(s)
+	if len(runes) > width {
+		if width <= 1 {
+			return "…"
+		}
+		return string(runes[:width-1]) + "…"
+	}
+	return s + strings.Repeat(" ", width-len(runes))
 }
 
 // plainCells renderiza texto puro: se houver ANSI, as cores reais do app
-// prevalecem; senão, usa a cor do nível heurístico (ou a padrão).
+// prevalecem; senão, tenta destacar uma linha de requisição HTTP
+// (método + status); por fim usa a cor do nível heurístico (ou a padrão).
 func (p *Painter) plainCells(e *model.Entry) []cell {
 	segs := ansiSegments(e.Text)
 	if len(segs) == 0 {
+		if hc, ok := p.httpCells(e.Text, levelStyle(p.pal, e.Level)); ok {
+			return hc
+		}
 		return runesToCells(e.Text, levelStyle(p.pal, e.Level))
 	}
 	var cells []cell
@@ -111,6 +132,42 @@ func (p *Painter) plainCells(e *model.Entry) []cell {
 		cells = appendCells(cells, s.text, s.style)
 	}
 	return cells
+}
+
+// httpLine casa linhas de requisição HTTP no estilo "GET /path 200 in 10ms".
+var httpLine = regexp.MustCompile(`^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)(\s+\S+\s+)(\d{3})(.*)$`)
+
+// httpCells colore método e status de uma linha de requisição HTTP; o
+// restante do texto usa def (o estilo padrão de nível da linha).
+func (p *Painter) httpCells(s string, def tcell.Style) ([]cell, bool) {
+	m := httpLine.FindStringSubmatch(s)
+	if m == nil {
+		return nil, false
+	}
+	method, path, status, tail := m[1], m[2], m[3], m[4]
+	var cells []cell
+	cells = appendCells(cells, method, def.Foreground(p.pal.Service))
+	cells = appendCells(cells, path, def)
+	cells = appendCells(cells, status, tcell.StyleDefault.Foreground(httpStatusColor(p.pal, status)))
+	cells = appendCells(cells, tail, def)
+	return cells, true
+}
+
+// httpStatusColor devolve a cor por faixa de status HTTP: 2xx verde,
+// 3xx ciano, 4xx amarelo, 5xx vermelho.
+func httpStatusColor(pal Palette, status string) tcell.Color {
+	switch status[0] {
+	case '2':
+		return pal.LevelColor[model.LevelInfo]
+	case '3':
+		return tcell.ColorDarkCyan
+	case '4':
+		return pal.LevelColor[model.LevelWarn]
+	case '5':
+		return pal.LevelColor[model.LevelError]
+	default:
+		return tcell.ColorDefault
+	}
 }
 
 // levelStyle devolve o estilo de uma linha segundo seu nível.

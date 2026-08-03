@@ -27,7 +27,7 @@ func TestCellsForJSON(t *testing.T) {
 		Text:    "boom",
 	}
 	got := cellsRunes(p.cellsFor(e, ""))
-	want := "2026-01-02 03:04:05.000 api ERROR boom"
+	want := "2026-01-02 03:04:05.000 api                  ERROR boom"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -56,6 +56,55 @@ func TestPlainCellsANSIPreserved(t *testing.T) {
 	e := &model.Entry{Text: "\x1b[31mred\x1b[0m plain"}
 	got := cellsRunes(p.plainCells(e))
 	if got != "red plain" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestPadService(t *testing.T) {
+	if got := padService("api", 6); got != "api   " {
+		t.Errorf("got %q", got)
+	}
+	if got := padService("be/general-rest-api", 10); got != "be/genera…" {
+		t.Errorf("got %q", got)
+	}
+	if got := padService("ok", 2); got != "ok" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestCellsForPlainTextWithService(t *testing.T) {
+	p := NewPainter(DefaultPalette())
+	e := &model.Entry{Service: "ui", Text: "linha simples"}
+	got := cellsRunes(p.cellsFor(e, ""))
+	want := padService("ui", serviceWidth) + " linha simples"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestHTTPLineColored(t *testing.T) {
+	p := NewPainter(DefaultPalette())
+	e := &model.Entry{Text: "GET /api/auth/get-session 200 in 105ms"}
+	cells := p.plainCells(e)
+	got := cellsRunes(cells)
+	if got != e.Text {
+		t.Fatalf("got %q, want %q", got, e.Text)
+	}
+	// os 3 dígitos do status devem estar na cor de sucesso (info).
+	statusIdx := strings.Index(got, "200")
+	for i := statusIdx; i < statusIdx+3; i++ {
+		fg, _, _ := cells[i].st.Decompose()
+		if fg != p.pal.LevelColor[model.LevelInfo] {
+			t.Errorf("status[%d] fg = %v, want %v", i, fg, p.pal.LevelColor[model.LevelInfo])
+		}
+	}
+}
+
+func TestHTTPLineANSIPreserved(t *testing.T) {
+	p := NewPainter(DefaultPalette())
+	e := &model.Entry{Text: "\x1b[31mGET /path 500 in 1ms\x1b[0m"}
+	got := cellsRunes(p.plainCells(e))
+	if got != "GET /path 500 in 1ms" {
 		t.Errorf("got %q", got)
 	}
 }

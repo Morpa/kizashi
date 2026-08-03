@@ -102,6 +102,49 @@ func TestNumericLevel(t *testing.T) {
 	}
 }
 
+func TestParseLineTaskPrefixJSON(t *testing.T) {
+	e := ParseLine(`be/general-rest-api dev: {"level":"info","message":"ok"}`, "stdin")
+	if !e.IsJSON {
+		t.Fatalf("esperava IsJSON true; text=%q", e.Text)
+	}
+	if e.Service != "be/general-rest-api" {
+		t.Errorf("Service = %q", e.Service)
+	}
+	if e.Text != "ok" {
+		t.Errorf("Text = %q", e.Text)
+	}
+}
+
+func TestParseLineTaskPrefixPlain(t *testing.T) {
+	e := ParseLine("ui dev:  GET /api/auth/get-session 200 in 105ms", "stdin")
+	if e.IsJSON {
+		t.Fatal("esperava IsJSON false")
+	}
+	if e.Service != "ui" {
+		t.Errorf("Service = %q", e.Service)
+	}
+	if e.Text != " GET /api/auth/get-session 200 in 105ms" {
+		t.Errorf("Text = %q", e.Text)
+	}
+}
+
+func TestParseLineTaskPrefixDoesNotMatchCapitalized(t *testing.T) {
+	e := ParseLine("Error: falha ao processar", "stdin")
+	if e.Service != "" {
+		t.Errorf("Service = %q, esperava vazio (não deveria casar como prefixo)", e.Service)
+	}
+	if e.Level != model.LevelError {
+		t.Errorf("Level = %v, esperava LevelError", e.Level)
+	}
+}
+
+func TestParseLineTaskPrefixJSONOwnServiceWins(t *testing.T) {
+	e := ParseLine(`api dev: {"level":"info","message":"ok","service":"payments"}`, "stdin")
+	if e.Service != "payments" {
+		t.Errorf("Service = %q, esperava campo do JSON vencendo o prefixo", e.Service)
+	}
+}
+
 func TestParseLineKeepsRaw(t *testing.T) {
 	raw := "\x1b[31merror boom\x1b[0m"
 	e := ParseLine(raw, "s")
