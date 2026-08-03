@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Morpa/kizashi/compare/v1.0.3...v1.1.0) (2026-08-03)
+
+
+### Features
+
+* **logparse,tui:** extract monorepo task-runner prefix as service ([a3ffa39](https://github.com/Morpa/kizashi/commit/a3ffa39398830f8db2d9c4e9f73999cf5ecfc1e8))
+
 ## [1.0.3](https://github.com/Morpa/kizashi/compare/v1.0.2...v1.0.3) (2026-08-01)
 
 
