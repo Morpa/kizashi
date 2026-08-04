@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Morpa/kizashi/compare/v1.1.0...v1.2.0) (2026-08-04)
+
+
+### Features
+
+* **logparse,cli:** add --format schema and layered parser ([f24805b](https://github.com/Morpa/kizashi/commit/f24805ba35280a083bad92b6aef9503e534d1c16))
+
 ## [1.1.0](https://github.com/Morpa/kizashi/compare/v1.0.3...v1.1.0) (2026-08-03)
 
 
