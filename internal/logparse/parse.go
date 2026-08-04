@@ -1,10 +1,15 @@
 // Package logparse converte linhas brutas de log em model.Entry.
 // Lógica pura, sem dependências de UI.
+//
+// Arquitetura em 3 camadas:
+//   - parsers: formatos estruturados (JSON, logfmt) atrás da interface Parser;
+//   - record: payload normalizado de onde os papéis semânticos são extraídos;
+//   - resolver: localiza level/time/mensagem/serviço por precedência de sinal,
+//     com override opcional via Schema (flag --format).
 
 package logparse
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 
@@ -19,8 +24,15 @@ var ansiStrip = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
 // "Note:" (convenção de frase capitalizada usada por heuristicLevel).
 var taskPrefix = regexp.MustCompile(`^([a-z][a-z0-9._/@-]*)(?:\s+[a-z][a-z0-9_-]*)?:\s(.*)$`)
 
-// ParseLine converte uma linha de log em uma model.Entry.
+// ParseLine converte uma linha de log em uma model.Entry usando o schema padrão.
 func ParseLine(line, source string) model.Entry {
+	return ParseLineWith(line, source, nil)
+}
+
+// ParseLineWith converte uma linha usando o schema dado (nil = detecção
+// automática). O prefixo de task-runner é extraído antes da seleção de parser
+// e vira Service quando o payload não tiver um.
+func ParseLineWith(line, source string, schema *Schema) model.Entry {
 	e := model.Entry{Raw: line, Source: source}
 
 	rest := line
@@ -30,17 +42,16 @@ func ParseLine(line, source string) model.Entry {
 		rest = m[2]
 	}
 
-	if fields, ok := parseJSONObject(rest); ok {
-		e.IsJSON = true
-		e.Fields = fields
-		e.Level = extractLevel(fields)
-		e.Time = extractTime(fields)
-		e.Service = extractService(fields)
-		if e.Service == "" {
-			e.Service = prefixService
+	for _, p := range parsers {
+		if rec, ok := p.Parse(rest); ok {
+			e.IsJSON = rec.Structured
+			e.Fields = rec.Fields
+			e.Level, e.Time, e.Service, e.Text = applySchema(rec, schema)
+			if e.Service == "" {
+				e.Service = prefixService
+			}
+			return e
 		}
-		e.Text = extractMessage(fields)
-		return e
 	}
 
 	// texto puro: mantém o resto da linha (com ANSI, se houver)
@@ -48,25 +59,6 @@ func ParseLine(line, source string) model.Entry {
 	e.Text = rest
 	e.Level = heuristicLevel(rest)
 	return e
-}
-
-// parseJSONObject tenta interpretar a linha como um objeto JSON.
-// Aceita apenas objetos (mapas); arrays e escalares caem para texto puro.
-// Tenta a linha crua primeiro e, se falhar, tenta sem códigos ANSI
-// (alguns frameworks colorem a linha inteira, inclusive o JSON).
-func parseJSONObject(line string) (map[string]any, bool) {
-	var m map[string]any
-	if err := json.Unmarshal([]byte(line), &m); err == nil && m != nil {
-		return m, true
-	}
-	clean := ansiStrip.ReplaceAllString(line, "")
-	if clean != line {
-		m = nil
-		if err := json.Unmarshal([]byte(clean), &m); err == nil && m != nil {
-			return m, true
-		}
-	}
-	return nil, false
 }
 
 // heuristicLevel detecta o nível por palavras em linhas de texto puro.

@@ -47,3 +47,15 @@ func TestStreamMissingFile(t *testing.T) {
 		t.Error("esperava erro para arquivo inexistente")
 	}
 }
+
+// TestStreamInvalidFormat valida que o erro de --format aparece antes de
+// qualquer acesso a arquivo/TUI: um role desconhecido falha no ParseSchema.
+func TestStreamInvalidFormat(t *testing.T) {
+	cmd := NewRootCmd()
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{"stream", "--format", "bogus=1", "-f", filepath.Join(t.TempDir(), "nope.log")})
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "role") {
+		t.Errorf("esperava erro de schema (role), got %v", err)
+	}
+}

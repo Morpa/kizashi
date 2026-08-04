@@ -9,6 +9,7 @@ import (
 
 	"github.com/Morpa/kizashi/internal/buffer"
 	"github.com/Morpa/kizashi/internal/ingest"
+	"github.com/Morpa/kizashi/internal/logparse"
 	"github.com/Morpa/kizashi/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ import (
 func newStreamCmd() *cobra.Command {
 	var files []string
 	var bufferSize int
+	var format string
 
 	cmd := &cobra.Command{
 		Use:   "stream",
@@ -26,20 +28,33 @@ em um TUI com follow, filtros e cores por nível.
 Exemplos:
   meu-servidor 2>&1 | kizashi stream
   kizashi stream -f app.log
-  kizashi stream -f api.log -f worker.log --buffer 20000`,
+  kizashi stream -f api.log -f worker.log --buffer 20000
+  kizashi stream --format level=severity,time=ts,msg=message`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStream(cmd.Context(), files, bufferSize)
+			return runStream(cmd.Context(), files, bufferSize, format)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&files, "file", "f", nil, "faz tail de um arquivo (repetível: -f a.log -f b.log)")
 	cmd.Flags().IntVar(&bufferSize, "buffer", 10000, "máximo de entradas mantidas no buffer")
+	cmd.Flags().StringVar(&format, "format", "", "mapeia os campos do log (padrão: auto): level=severity,time=ts,msg=message,service=app")
 	return cmd
 }
 
-func runStream(ctx context.Context, files []string, bufferSize int) error {
+func runStream(ctx context.Context, files []string, bufferSize int, format string) error {
 	if bufferSize < 1 {
 		bufferSize = 1
+	}
+
+	// O schema é validado antes de abrir fontes/UI: um --format inválido
+	// falha de forma determinística, sem entrar no TUI.
+	var schema *logparse.Schema
+	if format != "" {
+		s, err := logparse.ParseSchema(format)
+		if err != nil {
+			return err
+		}
+		schema = s
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -71,7 +86,7 @@ func runStream(ctx context.Context, files []string, bufferSize int) error {
 
 	ui := tui.New(tui.Options{Buffer: buf, Sources: names, DoneCh: doneCh})
 	go func() {
-		_ = ingest.Run(ctx, buf, ui.Notify, sources...)
+		_ = ingest.RunWith(ctx, buf, ui.Notify, ingest.Options{Schema: schema}, sources...)
 		close(doneCh)
 	}()
 
