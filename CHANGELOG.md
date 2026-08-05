@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Morpa/kizashi/compare/v1.2.0...v1.3.0) (2026-08-05)
+
+
+### Features
+
+* **tui:** add filter negation, noise toggle, line detail, horizontal scroll ([82ad1ee](https://github.com/Morpa/kizashi/commit/82ad1ee3dad1dcb8dd72a3ea7fbffc8d86e57ed7))
+
 ## [1.2.0](https://github.com/Morpa/kizashi/compare/v1.1.0...v1.2.0) (2026-08-04)
 
 
