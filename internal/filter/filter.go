@@ -3,6 +3,7 @@
 //   - level=error, level>=warn, level<info   → comparação de nível
 //   - service=api, status=200                 → substring do campo (top-level, "." = aninhado)
 //   - qualquer outra palavra                  → substring case-insensitive da mensagem
+//   - -termo ou !termo                        → nega qualquer um dos anteriores (esconde)
 package filter
 
 import (
@@ -29,6 +30,11 @@ type levelTerm struct {
 	lvl model.Level
 }
 
+// notTerm inverte o resultado de outro termo (prefixo "-" ou "!").
+type notTerm struct{ inner term }
+
+func (t notTerm) Match(e model.Entry) bool { return !t.inner.Match(e) }
+
 var levelOpRe = regexp.MustCompile(`(?i)^level(>=|<=|>|<|=)(.+)$`)
 
 // Filter combina termos com AND. A expressão original fica guardada para
@@ -51,6 +57,13 @@ func Parse(s string) *Filter {
 }
 
 func parseTerm(tok string) term {
+	if len(tok) > 1 && (tok[0] == '-' || tok[0] == '!') {
+		t := parseTerm(tok[1:])
+		if t == nil {
+			return nil
+		}
+		return notTerm{inner: t}
+	}
 	if m := levelOpRe.FindStringSubmatch(tok); m != nil {
 		lvl, ok := model.LevelFromName(m[2])
 		if !ok {
@@ -76,6 +89,38 @@ func (f *Filter) Match(e model.Entry) bool {
 
 // IsEmpty indica se o filtro não tem termos (mostra tudo).
 func (f *Filter) IsEmpty() bool { return len(f.terms) == 0 }
+
+// noiseSuffixes são os sufixos reconhecidos por IsNoise. Padrão cobre a
+// convenção mais comum em logs estruturados ("algo-start"/"algo-done"); um
+// projeto com outra convenção (ex.: "_begin"/"_end") pode substituir a lista
+// via SetNoiseSuffixes (flag --noise da CLI).
+var noiseSuffixes = []string{"-start", "-done"}
+
+// SetNoiseSuffixes substitui (não soma) a lista padrão de sufixos de ruído.
+// suffixes vazio é um no-op — mantém o padrão. Chamar antes de qualquer
+// leitura concorrente (a CLI faz isso na inicialização, antes de subir a UI).
+func SetNoiseSuffixes(suffixes []string) {
+	if len(suffixes) == 0 {
+		return
+	}
+	noiseSuffixes = suffixes
+}
+
+// IsNoise identifica mensagens de "lifecycle" de baixo valor, segundo
+// noiseSuffixes. Usada pelo toggle "silenciar ruído" do TUI (tecla `n`),
+// independente do filtro de texto do usuário.
+func IsNoise(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	for _, suf := range noiseSuffixes {
+		if suf == "" {
+			continue
+		}
+		if strings.HasSuffix(t, strings.ToLower(suf)) {
+			return true
+		}
+	}
+	return false
+}
 
 // Needle devolve o termo de substring simples, se houver, para destacá-lo
 // na renderização. Campo/nível não geram destaque.

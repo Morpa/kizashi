@@ -179,10 +179,35 @@ func lookupPathDepth(m map[string]any, comps []string, fold bool, depth int) (an
 	return nil, false
 }
 
-// formatEpoch formata epoch em segundos ou milissegundos (hora local).
+// formatEpoch formata epoch (segundos ou milissegundos) como hora local
+// curta (sem data): a data raramente importa numa sessão de stream, e a
+// coluna de tempo consome largura preciosa em terminais estreitos.
 func formatEpoch(n float64) string {
 	if n > 1e11 {
 		n /= 1e3 // milissegundos
 	}
-	return time.Unix(int64(n), 0).Local().Format("2006-01-02 15:04:05.000")
+	return time.Unix(int64(n), 0).Local().Format("15:04:05.000")
+}
+
+// timeLayouts são os formatos textuais reconhecidos por shortenTime, em
+// ordem de tentativa.
+var timeLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05.000",
+	"2006-01-02 15:04:05.000",
+	"2006-01-02 15:04:05",
+}
+
+// shortenTime reduz um timestamp textual (ISO 8601 e variantes comuns) para
+// "hora local" (HH:MM:SS.mmm), a mesma ideia de formatEpoch mas para o caso
+// em que o log já manda o tempo como string. Formatos não reconhecidos
+// passam sem alteração — melhor mostrar o valor cru do que adivinhar errado.
+func shortenTime(s string) string {
+	for _, layout := range timeLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.Local().Format("15:04:05.000")
+		}
+	}
+	return s
 }

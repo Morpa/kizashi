@@ -53,12 +53,14 @@ kizashi stream -f app.log --buffer 20000    # buffer maior
 
 | Tecla                 | Ação                             |
 | --------------------- | -------------------------------- |
-| `q` / `Ctrl-C`        | sair                             |
+| `q` / `Ctrl-C`        | sair (encerra também o comando do outro lado do pipe) |
 | `/`                   | abrir o filtro                   |
-| `Enter`               | aplicar o filtro                 |
-| `Esc`                 | limpar o filtro                  |
+| `Enter`               | aplicar o filtro (com o filtro aberto) / abrir o detalhe da linha atual (fora dele) |
+| `Esc`                 | limpar o filtro, ou fechar o detalhe |
 | `Espaço` / `f`        | pausar / retomar o follow        |
+| `n`                   | silenciar/mostrar ruído de lifecycle (`algo-start`/`algo-done`) |
 | `↑` `↓` `PgUp` `PgDn` | rolar (↑ sai do follow)          |
+| `←` `→`               | rolar na horizontal, até o fim da maior linha visível |
 | `g` / `G`             | início / fim (G retoma o follow) |
 
 ## Filtros
@@ -73,16 +75,37 @@ Pressione `/` e digite. Termos separados por espaço = AND.
 | `service=api`   | campo `service` contém "api" |
 | `request.id=42` | campo aninhado               |
 | `error slow`    | os dois ao mesmo tempo       |
+| `-start -done`  | esconde o que bate com "start" ou "done" |
+| `!level=debug`  | nega qualquer termo (`-` ou `!` funcionam igual) |
 
 ## O que o kizashi entende
 
 - **Linha JSON** (de uma linha só) → vira `hora serviço NÍVEL mensagem`, cor
   por nível. Funciona com logs estruturados de qualquer ferramenta (pino,
   Astro, ...), incluindo níveis numéricos (pino: 30 = info, 50 = error).
+  A hora aparece curta (`HH:MM:SS.mmm`, fuso local) mesmo quando o log manda
+  timestamp completo (ISO 8601 ou epoch) — a data raramente importa numa
+  sessão de stream e só rouba espaço.
 - **Texto puro** → passa como está, mantendo as cores ANSI do teu app
   (ex.: Vite). O nível é adivinhado por palavra (`error`, `warn`, ...).
 - **Memória limitada**: guarda os últimos 10.000 logs (aumente com
   `--buffer 50000`).
+- **Ruído de lifecycle**: mensagens terminadas em `-start`/`-done` (convenção
+  comum pra logar início/fim de uma etapa) podem ser escondidas com a tecla
+  `n`, sem precisar digitar um filtro. Outra convenção (`_begin`/`_end`,
+  `.start`/`.end`, ...)? Troque com `--noise "_begin,_end"` (substitui o
+  padrão, não soma).
+- **Detalhe da linha**: `Enter` (fora do filtro) abre o registro completo da
+  linha atual — JSON formatado, com todos os campos, útil quando a linha é
+  larga demais até pro scroll horizontal.
+
+## Saindo
+
+`q` / `Ctrl-C` fecha o kizashi **e** encerra o comando que está do outro lado
+do pipe (ex.: `pnpm dev | kizashi stream` mata o `pnpm dev` junto). Isso imita
+o Ctrl-C normal do terminal: como o kizashi roda em modo raw, sem isso o
+comando upstream continuava rodando sozinho depois do kizashi fechar, dando a
+sensação de terminal travado.
 
 ## Limitações
 

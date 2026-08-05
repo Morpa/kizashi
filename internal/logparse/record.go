@@ -24,7 +24,7 @@ func applySchema(rec Record, schema *Schema) (level model.Level, timeStr, servic
 	if v, ok := resolve(m, fieldTime, schema); ok {
 		switch t := v.(type) {
 		case string:
-			timeStr = t
+			timeStr = shortenTime(t)
 		case float64:
 			timeStr = formatEpoch(t)
 		}

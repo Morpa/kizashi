@@ -51,12 +51,39 @@ type Painter struct {
 
 func NewPainter(pal Palette) *Painter { return &Painter{pal: pal} }
 
-// PaintLine desenha a entrada na posição (x, y), truncando em maxW células.
-func (p *Painter) PaintLine(screen tcell.Screen, e *model.Entry, x, y, maxW int, needle string) {
+// LineWidth devolve a largura (em células) da linha renderizada — usada
+// pelo LogView para não deixar o scroll horizontal passar do fim de todas
+// as linhas visíveis.
+func (p *Painter) LineWidth(e *model.Entry) int {
+	w := 0
+	for _, c := range p.cellsFor(e, "") {
+		w += runewidth.RuneWidth(c.r)
+	}
+	return w
+}
+
+// PaintLine desenha a entrada na posição (x, y), pulando xOffset células à
+// esquerda (scroll horizontal) e truncando em maxW células. selected marca a
+// linha em vídeo reverso — é a "linha atual" que Enter expande no detalhe.
+func (p *Painter) PaintLine(screen tcell.Screen, e *model.Entry, x, y, maxW, xOffset int, selected bool, needle string) {
 	if maxW <= 0 {
 		return
 	}
 	cells := p.cellsFor(e, needle)
+	if selected {
+		for i := range cells {
+			cells[i].st = cells[i].st.Reverse(true)
+		}
+	}
+	if xOffset > 0 {
+		skipped := 0
+		i := 0
+		for i < len(cells) && skipped < xOffset {
+			skipped += runewidth.RuneWidth(cells[i].r)
+			i++
+		}
+		cells = cells[i:]
+	}
 	cx := x
 	truncated := false
 	for _, c := range cells {
@@ -70,6 +97,11 @@ func (p *Painter) PaintLine(screen tcell.Screen, e *model.Entry, x, y, maxW int,
 	}
 	if truncated && cx < x+maxW {
 		screen.SetContent(cx, y, '…', nil, tcell.StyleDefault)
+	}
+	if xOffset > 0 && cx == x {
+		// linha inteiramente rolada para fora de vista: marca com "«" para
+		// diferenciar de uma linha vazia de verdade.
+		screen.SetContent(x, y, '«', nil, tcell.StyleDefault)
 	}
 }
 

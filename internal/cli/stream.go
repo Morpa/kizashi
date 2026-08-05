@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Morpa/kizashi/internal/buffer"
+	"github.com/Morpa/kizashi/internal/filter"
 	"github.com/Morpa/kizashi/internal/ingest"
 	"github.com/Morpa/kizashi/internal/logparse"
 	"github.com/Morpa/kizashi/internal/tui"
@@ -18,6 +20,7 @@ func newStreamCmd() *cobra.Command {
 	var files []string
 	var bufferSize int
 	var format string
+	var noise string
 
 	cmd := &cobra.Command{
 		Use:   "stream",
@@ -32,16 +35,17 @@ Exemplos:
   kizashi stream --format level=severity,time=ts,msg=message`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStream(cmd.Context(), files, bufferSize, format)
+			return runStream(cmd.Context(), files, bufferSize, format, noise)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&files, "file", "f", nil, "faz tail de um arquivo (repetível: -f a.log -f b.log)")
 	cmd.Flags().IntVar(&bufferSize, "buffer", 10000, "máximo de entradas mantidas no buffer")
 	cmd.Flags().StringVar(&format, "format", "", "mapeia os campos do log (padrão: auto): level=severity,time=ts,msg=message,service=app")
+	cmd.Flags().StringVar(&noise, "noise", "", "sufixos tratados como ruído de lifecycle pela tecla 'n', separados por vírgula (padrão: -start,-done)")
 	return cmd
 }
 
-func runStream(ctx context.Context, files []string, bufferSize int, format string) error {
+func runStream(ctx context.Context, files []string, bufferSize int, format, noise string) error {
 	if bufferSize < 1 {
 		bufferSize = 1
 	}
@@ -55,6 +59,15 @@ func runStream(ctx context.Context, files []string, bufferSize int, format strin
 			return err
 		}
 		schema = s
+	}
+	if noise != "" {
+		var suffixes []string
+		for s := range strings.SplitSeq(noise, ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				suffixes = append(suffixes, s)
+			}
+		}
+		filter.SetNoiseSuffixes(suffixes)
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -90,5 +103,11 @@ func runStream(ctx context.Context, files []string, bufferSize int, format strin
 		close(doneCh)
 	}()
 
-	return ui.Run()
+	err := ui.Run()
+	// Ao sair (q/Ctrl-C), propaga o sinal para o grupo de processos: sem
+	// isso, um comando upstream em pipe (ex.: "pnpm dev | kizashi stream")
+	// continua rodando sozinho depois que o kizashi fecha, dando a
+	// impressão de que o terminal travou ao sair.
+	terminatePipeline()
+	return err
 }

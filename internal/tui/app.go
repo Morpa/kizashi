@@ -2,16 +2,23 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/Morpa/kizashi/internal/buffer"
 	"github.com/Morpa/kizashi/internal/filter"
+	"github.com/Morpa/kizashi/internal/model"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+// ansiRe remove códigos de escape ANSI do texto exibido no painel de
+// detalhe (o TextView do detalhe não interpreta cores dinâmicas).
+var ansiRe = regexp.MustCompile("\x1b\\[[0-9;?]*[ -/]*[@-~]")
 
 // Options configura o App. As fontes (nomes) aparecem na status bar.
 type Options struct {
@@ -23,11 +30,12 @@ type Options struct {
 
 // App reúne a aplicação tview e seu estado.
 type App struct {
-	app      *tview.Application
-	pages    *tview.Pages
-	logView  *LogView
-	status   *tview.TextView
-	filterIn *tview.InputField
+	app        *tview.Application
+	pages      *tview.Pages
+	logView    *LogView
+	status     *tview.TextView
+	filterIn   *tview.InputField
+	detailView *tview.TextView
 
 	buf        *buffer.Buffer
 	sources    []string
@@ -36,6 +44,7 @@ type App struct {
 	pending    atomic.Bool // dados novos desde o último draw
 	ingestEnd  atomic.Bool
 	filterOpen bool
+	detailOpen bool
 }
 
 // New cria o App. A UI é montada em Run.
@@ -118,9 +127,18 @@ func (a *App) buildUI() {
 		AddItem(nil, 0, 1, false), modalHeight, 0, true)
 	modal.AddItem(nil, 0, 1, false)
 
+	a.detailView = tview.NewTextView()
+	a.detailView.SetDynamicColors(false)
+	a.detailView.SetWrap(true)
+	a.detailView.SetScrollable(true)
+	a.detailView.SetBorder(true)
+	a.detailView.SetTitle(" detalhe — Esc/q fecha ")
+	a.detailView.SetBorderAttributes(tcell.AttrDim)
+
 	a.pages = tview.NewPages()
 	a.pages.AddPage("main", main, true, true)
 	a.pages.AddPage("filter", modal, true, false)
+	a.pages.AddPage("detail", a.detailView, true, false)
 
 	a.app.SetRoot(a.pages, true)
 	a.app.SetFocus(a.logView)
@@ -135,6 +153,18 @@ func (a *App) setupKeys() {
 		if a.filterOpen {
 			return event
 		}
+		if a.detailOpen {
+			switch {
+			case event.Key() == tcell.KeyEsc:
+				a.closeDetail()
+				return nil
+			case event.Key() == tcell.KeyRune && event.Rune() == 'q':
+				a.closeDetail()
+				return nil
+			}
+			// setas/PgUp/PgDn passam para o TextView de detalhe rolar o conteúdo.
+			return event
+		}
 		switch event.Key() {
 		case tcell.KeyCtrlC:
 			a.app.Stop()
@@ -144,6 +174,9 @@ func (a *App) setupKeys() {
 				a.logView.SetFilter(nil)
 				a.renderStatus()
 			}
+			return nil
+		case tcell.KeyEnter:
+			a.openDetail()
 			return nil
 		case tcell.KeyRune:
 			switch event.Rune() {
@@ -156,11 +189,54 @@ func (a *App) setupKeys() {
 			case 'f', ' ':
 				a.logView.ToggleFollow() // OnFollowChange atualiza a status bar
 				return nil
+			case 'n':
+				a.logView.ToggleHideNoise()
+				a.renderStatus()
+				return nil
 			}
+		case tcell.KeyLeft:
+			a.logView.ScrollX(-HorizScrollStep)
+			a.renderStatus()
+			return nil
+		case tcell.KeyRight:
+			a.logView.ScrollX(HorizScrollStep)
+			a.renderStatus()
+			return nil
 		}
-		// setas/PageUp/PageDown/Home/End/g/G → LogView
+		// PageUp/PageDown/Home/End/↑/↓/g/G → LogView
 		return event
 	})
+}
+
+// openDetail mostra o registro completo (JSON formatado, ou texto cru sem
+// ANSI) da linha selecionada — a mesma âncora usada pelo scroll.
+func (a *App) openDetail() {
+	e, ok := a.logView.Selected()
+	if !ok {
+		return
+	}
+	a.detailView.SetText(detailText(&e))
+	a.detailView.ScrollToBeginning()
+	a.detailOpen = true
+	a.pages.ShowPage("detail")
+	a.app.SetFocus(a.detailView)
+}
+
+func (a *App) closeDetail() {
+	a.detailOpen = false
+	a.pages.HidePage("detail")
+	a.app.SetFocus(a.logView)
+}
+
+// detailText monta o texto do painel de detalhe: JSON formatado quando a
+// linha é estruturada, senão a linha crua sem códigos ANSI.
+func detailText(e *model.Entry) string {
+	if e.IsJSON {
+		if b, err := json.MarshalIndent(e.Fields, "", "  "); err == nil {
+			return string(b)
+		}
+	}
+	return ansiRe.ReplaceAllString(e.Raw, "")
 }
 
 func (a *App) openFilter() {
@@ -209,6 +285,12 @@ func (a *App) renderStatus() {
 	}
 	if f := a.logView.Filter(); f != nil && !f.IsEmpty() {
 		fmt.Fprintf(&sb, "  [::d]filtro: %s[-:-:-]", tview.Escape(f.Text))
+	}
+	if off := a.logView.HOffset(); off > 0 {
+		fmt.Fprintf(&sb, "  [::d]«scroll: %d[-:-:-]", off)
+	}
+	if a.logView.HideNoise() {
+		sb.WriteString("  [::d]ruído oculto (n)[-]")
 	}
 	fmt.Fprintf(&sb, "  [::d]fontes: %s[-:-:-]", strings.Join(a.sources, ", "))
 	if a.ingestEnd.Load() {
